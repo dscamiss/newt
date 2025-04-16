@@ -1,2 +1,9 @@
-# god-tier
-An implementation of the GD-TLR learning rate scheduler
+# `newt` :lizard:
+
+A novel Newton-like learning rate scheduler.
+
+# Introduction
+
+# Installation
+
+# Usage
