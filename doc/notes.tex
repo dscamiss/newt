@@ -1,0 +1,180 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fullpage}
+\usepackage{hyperref}
+\usepackage{mathrsfs}
+\usepackage{microtype}
+\usepackage[numbers]{natbib}
+
+\newcommand{\bR}{\mathbb{R}}
+\newcommand{\Hess}{\mathrm{Hess}}
+\newcommand{\rmvec}{\mathrm{vec}}
+
+\title{\texttt{newt}: A Newton-type learning rate scheduler}
+\date{\today}
+\author{\href{mailto:dscamiss@gmail.com}{\texttt{dscamiss@gmail.com}}}
+
+\begin{document}
+
+\maketitle
+\begin{abstract}
+    Development notes on a Newton-type learning rate scheduler.
+\end{abstract}
+
+% TODO:
+% - General "update vector" formulation
+% - Verify, implement
+
+\section{Introduction}
+
+For other efforts along these lines, see
+\citep{retsinas2022trainable}, \citep{retstinas2023trainable}
+and references contained therein.
+
+\section{Example: Augmented SGD}
+
+Consider an augmented version of SGD where the update rule at step $t$ is
+\begin{align*}
+    \theta_{t+1} &= \theta_t - \alpha_t \nabla L_t(\theta_t) \\
+    \alpha_{t+1} &= \alpha_t - \beta \frac{g_t'(\alpha_t)}{g_t''(\alpha_t)}.
+\end{align*}
+The numerator term in the $\alpha$ update is easily computed using the chain rule:
+\begin{align*}
+    g'_t(\alpha_t)
+    &= -dL_t(\theta_t -\alpha_t \nabla L_t(\theta_t)) \cdot \nabla L_t(\theta_t) \\
+    &= \langle \nabla L_t(\theta_t -\alpha_t \nabla L_t(\theta_t)), \nabla L_t(\theta_t) \rangle.
+\end{align*}
+Similarly, the denominator term in the $\alpha$ update is
+\begin{align*}
+    g''_t(\alpha_t)
+    &= d^2 L_t(\theta_t - \alpha_t \nabla L_t(\theta_t))
+    \cdot (\nabla L_t(\theta_t), \nabla L_t(\theta_t)) \\
+    &= \rmvec(\nabla L_t(\theta_t))^t H(L_t)(\theta_t - \alpha_t \nabla L_t(\theta_t)) \rmvec(\nabla L_t(\theta_t)),
+\end{align*}
+where $\rmvec$ is the vectorization map and
+$H(L_t)(\theta)$ is the Hessian of $L_t$ at $\theta$.
+To avoid computing the expensive Hessian-vector product, we will use the
+second-order Taylor series approximations
+\begin{align*}
+    L_t(\theta + \delta) \approx L_t(\theta) + dL_t(\theta) \cdot \delta
+    + \frac{1}{2} d^2 L_t(\theta) \cdot (\delta, \delta).
+\end{align*}
+In particular, with $\theta = \theta_t$ and $\delta = - 2 \alpha_t \nabla L_t(\theta_t)$, this becomes
+\begin{align*}
+    &L_t(\theta_t - 2 \alpha_t \nabla L_t(\theta_t)) \\
+    &\approx L_t(\theta_t - \alpha_t \nabla L_t(\theta_t))
+    - \alpha_t dL_t(\theta_t - \alpha_t \nabla L_t(\theta_t)) \cdot \nabla L_t(\theta_t)
+    + \frac{1}{2} \alpha_t^2 d^2 L_t(\theta_t - \alpha_t \nabla L_t(\theta_t)) \cdot (\nabla L_t(\theta_t), \nabla L_t(\theta_t)).
+\end{align*}
+Rearranging, we have
+\begin{align*}
+    &d^2 L_t(\theta_t - \alpha_t \nabla L_t(\theta_t)) \cdot (\nabla L_t(\theta_t), \nabla L_t(\theta_t)) \\
+    &\approx \frac{2}{\alpha_t^2} \big(
+        L_t(\theta_t - 2 \alpha_t \nabla L_t(\theta_t))
+        - L_t(\theta_t - \alpha_t \nabla L_t(\theta_t))
+        + \alpha_t dL_t(\theta_t - \alpha_t \nabla L_t(\theta_t)) \cdot \nabla L_t(\theta_t)
+    \big).
+\end{align*}
+To make this expression more compact, let's introduce the following notation:
+\begin{align*}
+    \theta_t[k] = \theta_t + k \nabla L_t(\theta_t).
+\end{align*}
+Then
+\begin{align*}
+    d^2 L_t(\theta_t[-1]) \cdot (\nabla L_t(\theta_t), \nabla L_t(\theta_t))
+    &\approx \frac{2
+        (L_t(\theta_t[-2])
+        - L_t(\theta_t[-1]))}{\alpha_t^2}
+        + \frac{dL_t(\theta_t[-1]) \cdot \nabla L_t(\theta_t)}{\alpha_t} \\
+    &= \frac{2
+        (L_t(\theta_t[-2])
+        - L_t(\theta_t[-1]))}{\alpha_t^2}
+        + \frac{\langle \nabla L_t(\theta_t[-1]), \nabla L_t(\theta_t) \rangle}{\alpha_t}\end{align*}
+and the $\alpha$ update rule is
+\begin{align*}
+    \alpha_{t+1} &= \alpha_t + \beta
+    \frac{\langle \nabla L_t(\theta_t[-1]), \nabla L_t(\theta_t) \rangle}
+    {
+    \frac{2
+    (L_t(\theta_t[-2])
+    - L_t(\theta_t[-1]))}{\alpha_t^2}
+    + \frac{\langle \nabla L_t(\theta_t[-1]), \nabla L_t(\theta_t) \rangle}{\alpha_t}
+    } \\
+    &= \alpha_t + \beta
+    \frac{\alpha_t^2 \langle \nabla L_t(\theta_t[-1]), \nabla L_t(\theta_t) \rangle}
+    {
+    2 (L_t(\theta_t[-2])
+    - L_t(\theta_t[-1]))
+    + \alpha_t \langle \nabla L_t(\theta_t[-1]), \nabla L_t(\theta_t) \rangle.
+    }
+\end{align*}.
+
+% --- Junk follows ---
+
+\section{Derivatives of $L_t^*$}
+
+\subsection{First-order}
+
+The first-order derivative of $L_t^*$ with respect to $\alpha$ is
+\begin{align*}
+    d_\alpha L_t^* (\alpha, \theta)
+    &= -d L_t (\theta - \alpha \nabla L_t (\theta)) \cdot \nabla L_t(\theta) \\
+    &= -\langle \nabla L_t(\theta - \alpha \nabla L_t (\theta)), \nabla L_t(\theta) \rangle.
+\end{align*}
+
+\subsection{Second-order}
+
+The basic assumption is that $L_t$ is well-approximated
+by its second-order Taylor series approximation.  That is,
+\begin{align*}
+    L_t (\theta + \delta) \approx
+    L_t(\theta)  + dL_t(\theta) \cdot \delta + \frac{1}{2} d^2 L_t(\theta) \cdot (\delta, \delta).
+\end{align*}
+For the augmented loss function, this means that
+\begin{align*}
+    L_t^* (\alpha, \theta)
+    &\approx L_t(\theta) - \alpha dL_t(\theta) \cdot \nabla L_t(\theta)
+    + \frac{1}{2} d^2 L_t(\theta) \cdot (\nabla L_t(\theta), \nabla L_t(\theta))).
+\end{align*}
+In particular,
+\begin{align*}
+    L_t^* (\alpha, \theta_{t+1})
+    &\approx
+\end{align*}
+
+\section{Notes}
+
+Equivalently,
+\begin{align*}
+    d^2_\alpha L_t^* (\alpha, \theta_t)
+    &= \rmvec(\nabla L_t(\theta_t))^t \Hess(L_t)(\theta_t - \alpha \nabla L_t (\theta_t)) \rmvec(\nabla L_t(\theta_t)),
+\end{align*}
+where $\rmvec$ is the column-major vectorization map and $\Hess(L_t)(\theta)$ is the
+corresponding Hessian of $L_t$ evaluated at $\theta$.
+
+%This corrects an error in \cite{retsinas2022trainable}, which claims (using our notation) that
+%\begin{align*}
+%    d^2_\alpha L_t^* (\alpha, \theta_t)
+%    &= 4 \rmvec(\nabla L_t(\hat{\theta}_t))^t \Hess(L_t)(\theta_t) \rmvec(\nabla L_t(\hat{\theta}_t)).
+%\end{align*}
+
+Notes:
+\begin{align*}
+    d_\theta L_t^* (\alpha, \theta) \cdot \tilde{\theta}
+    &= dL_t(\theta - \alpha \nabla L_t (\theta)) \cdot d^2 L_t(\theta) \cdot (\tilde{\theta}, \cdot) \\
+\end{align*}
+This means that
+\begin{align*}
+    d_\theta L_t^* (\alpha, \theta_t) \cdot \tilde{\theta}
+    &= dL_t(\theta_t - \alpha \nabla L_t (\theta_t)) \cdot d^2 L_t(\theta_t) \cdot (\tilde{\theta}, \cdot) \\
+    d_\theta L_t^* (\alpha, \theta_{t+1}) \cdot \tilde{\theta}
+    &= dL_t(\theta_{t+1} - \alpha \nabla L_t (\theta_{t+1})) \cdot d^2 L_t(\theta_{t+1}) \cdot (\tilde{\theta}, \cdot) \\
+\end{align*}
+
+\bibliographystyle{plainnat}
+\bibliography{notes}
+
+\end{document}
+% EOF
