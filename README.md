@@ -31,10 +31,9 @@ In other words, we simultaneously run a gradient descent update on $\theta$ (usi
 optimizer to produce the update vectors) and a Newton update on $\alpha$.  
 
 The implementation details primarily concern the Newton update, since directly computing $g''_t(\alpha_t)$ 
-requires an expensive Hessian-vector product.  To avoid this, we must use an approximation.
-
-There is some freedom in the nature of the approximation.  Our approach, 
-compared with the approach of [1], is described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
+requires an expensive Hessian-vector product.  To work around this, we must use an approximation.
+There is some freedom in choosing the approximation.  Our particular choice, 
+compared with the choice in [1], is described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
 
 # Installation
 
