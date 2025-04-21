@@ -1,5 +1,13 @@
 # `newt` :lizard:
 
+![License](https://img.shields.io/badge/license-MIT-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?logo=PyTorch&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.9-blue.svg)
+![Python](https://img.shields.io/badge/python-3.10-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11-blue.svg)
+![Build](https://github.com/dscamiss/newt/actions/workflows/python-package.yml/badge.svg)
+[![codecov](https://codecov.io/gh/dscamiss/newt/graph/badge.svg?token=Z3CGGZJ70B)](https://codecov.io/gh/dscamiss/newt)
+
 # Introduction
 
 This package provides a PyTorch implementation of a "Newton-like" learning rate scheduler.
