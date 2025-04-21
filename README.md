@@ -28,7 +28,7 @@ where
 * $g_t(\alpha) = L(\theta_t - \alpha u_t)$.
 
 In other words, we simultaneously run a gradient descent update on $\theta$ (using an arbitrary
-optimizer) and a Newton update on $\alpha$.  
+optimizer to produce the update vectors) and a Newton update on $\alpha$.  
 
 The implementation details primarily concern the Newton update, since directly computing $g''_t(\alpha_t)$ 
 requires an expensive Hessian-vector product.  To avoid this, we must use an approximation.
