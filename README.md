@@ -32,8 +32,7 @@ optimizer to produce the update vectors) and a Newton update on $\alpha$.
 
 The implementation details primarily concern the Newton update, since directly computing $g''_t(\alpha_t)$ 
 requires an expensive Hessian-vector product.  To work around this, we must use an approximation.
-There is some freedom in choosing the approximation.  Our particular choice, 
-compared with the choice in [1], is described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
+Our choice of approximation, compared with the one in [1], is described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
 
 # Installation
 
