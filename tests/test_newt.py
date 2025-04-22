@@ -94,19 +94,46 @@ def test_refresh_param_cache_unexpected(affine_model: nn.Module) -> None:
 
 
 def test_get_param_update(affine_model: nn.Module) -> None:
-    """Test update cache behavior."""
-    lr = 1.0  # Prevent floating-point errors
-    optimizer = torch.optim.SGD(affine_model.parameters(), lr=lr)
-    loss_criterion = torch.nn.MSELoss()
-    newt = Newt(optimizer, loss_criterion, cache_updates=True)
+    """Test `_get_param_update()` behavior."""
+    optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
+    newt = Newt(optimizer, None, cache_updates=True)
 
-    weight_delta = torch.randn_like(affine_model.weight)
-    bias_delta = torch.randn_like(affine_model.bias)
-    affine_model.weight.data -= lr * weight_delta
-    affine_model.bias.data -= lr * bias_delta
+    # Force parameter updates
+    expected_weight_update = torch.randn_like(affine_model.weight)
+    expected_bias_update = torch.randn_like(affine_model.bias)
+    affine_model.weight.data -= expected_weight_update
+    affine_model.bias.data -= expected_bias_update
 
+    # Compute actual weight updates
     weight_update = newt._get_param_update(affine_model.weight)
     bias_update = newt._get_param_update(affine_model.bias)
 
-    assert torch.allclose(weight_update, weight_delta), "Error in weight update"
-    assert torch.allclose(bias_update, bias_delta), "Error in bias update"
+    # Check actual versus expected
+    assert torch.allclose(weight_update, expected_weight_update), "Error in weight update"
+    assert torch.allclose(bias_update, expected_bias_update), "Error in bias update"
+
+
+def test_compute_inner_product(affine_model: nn.Module) -> None:
+    """Test `_compute_inner_product()` behavior."""
+    optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
+    newt = Newt(optimizer, None)
+
+    # Force parameter updates
+    weight_update = torch.randn_like(affine_model.weight)
+    bias_update = torch.randn_like(affine_model.bias)
+    affine_model.weight.data -= weight_update
+    affine_model.bias.data -= bias_update
+
+    # Force "next loss" gradients
+    affine_model.weight.grad = weight_update
+    affine_model.bias.grad = bias_update
+
+    # Compute actual and expected inner products
+    inner_product = newt._compute_inner_product()
+    expected_inner_product = torch.as_tensor(0.0).requires_grad_(False)
+    expected_inner_product.add_(torch.norm(weight_update) ** 2.0)  # fmt: skip
+    expected_inner_product.add_(torch.norm(bias_update) ** 2.0)  # fmt: skip
+
+    # Check actual versus expected
+    err_str = "Error in inner product"
+    assert torch.allclose(inner_product, expected_inner_product), err_str
