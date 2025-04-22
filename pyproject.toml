@@ -3,7 +3,7 @@ requires = ["setuptools >= 62.6"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hesse"
+name = "newt"
 version = "0.0.1"
 description = "A Newton-like learning rate scheduler"
 dynamic = ["dependencies"]
