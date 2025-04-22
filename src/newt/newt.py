@@ -10,6 +10,8 @@ from newt.types import LossCriterion, Optimizer, ParamTensorDict
 
 _DEFAULT_GAMMA = 1e-2
 _DEFAULT_EPSILON = 1e-5
+_DEFAULT_LR_CLAMP_LOW = 1e-7
+_DEFAULT_LR_CLAMP_HIGH = 1e-2
 
 
 class Newt(LRScheduler):
@@ -28,6 +30,8 @@ class Newt(LRScheduler):
         loss_criterion: LossCriterion,
         gamma: float = _DEFAULT_GAMMA,
         epsilon: float = _DEFAULT_EPSILON,
+        lr_clamp_low: float = _DEFAULT_LR_CLAMP_LOW,
+        lr_clamp_high: float = _DEFAULT_LR_CLAMP_HIGH,
         cache_updates: bool = False,
         last_epoch: int = -1,
     ) -> None:
@@ -43,6 +47,8 @@ class Newt(LRScheduler):
         self._loss_criterion = loss_criterion
         self._gamma = gamma
         self._epsilon = epsilon
+        self._lr_clamp_low = lr_clamp_low
+        self._lr_clamp_high = lr_clamp_high
         self._cache_updates = cache_updates
 
         self._curr_loss = None
@@ -102,9 +108,12 @@ class Newt(LRScheduler):
         """
         inner_product = self._compute_inner_product()
         curr_lr = self._optimizer.param_groups[0]["lr"]
+
         next_lr_num = (curr_lr ** 2.0) * inner_product  # fmt: skip
         next_lr_den = 2.0 * (self._curr_loss - self._next_loss - (curr_lr * inner_product))
-        return curr_lr * (1.0 + self._gamma * (next_lr_num / (self._epsilon + next_lr_den)))
+        next_lr = curr_lr * (1.0 + self._gamma * (next_lr_num / (self._epsilon + next_lr_den)))
+
+        return next_lr
 
     @jaxtyped(typechecker=typechecker)
     def _get_param_update(self, param: nn.Parameter) -> Num[Tensor, "..."]:
@@ -144,9 +153,12 @@ class Newt(LRScheduler):
         if self._step_count == 1:
             return [self._optimizer.param_groups[0]["lr"]]
 
-        # Update learning rate
+        # Compute updated learning rate
         # TODO: Handle tensor LR
         lr = self._compute_lr()
+
+        # Clamp updated learning rate
+        lr = torch.clamp(lr, self._lr_clamp_low, self._lr_clamp_high)
 
         # Refresh cached parameters
         self._refresh_param_cache()
