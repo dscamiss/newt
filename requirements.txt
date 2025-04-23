@@ -1,6 +1,7 @@
 flake8-pyproject==1.2.3
 jaxtyping>=0.2.36
-numpy==1.24.3
+numpy==1.24.3; python_version <= "3.11"
+numpy>=1.26.4; python_version >= "3.12"
 pytest==7.4.3
 torch==2.4.0
 typeguard==2.13.3
