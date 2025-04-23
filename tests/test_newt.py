@@ -6,31 +6,7 @@ import pytest
 import torch
 from torch import nn
 
-from newt import Newt
-
-
-@pytest.fixture(name="batch_dim")
-def fixture_batch_dim() -> int:
-    """Batch dimension."""
-    return 8
-
-
-@pytest.fixture(name="input_dim")
-def fixture_input_dim() -> int:
-    """Input dimension."""
-    return 2
-
-
-@pytest.fixture(name="output_dim")
-def fixture_output_dim() -> int:
-    """Input dimension."""
-    return 3
-
-
-@pytest.fixture(name="affine_model")
-def fixture_affine_model(input_dim: int, output_dim: int) -> nn.Module:
-    """Make affine model."""
-    return torch.nn.Linear(input_dim, output_dim, bias=True)
+from newt import Newt, NewtConfig
 
 
 def test_newt_multiple_parameter_groups(affine_model: nn.Module) -> None:
@@ -56,8 +32,7 @@ def test_newt_differentiable_optimizer(affine_model: nn.Module) -> None:
 def test_refresh_param_cache_no_frozen_params(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with no frozen parameters."""
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    loss_criterion = torch.nn.MSELoss()
-    newt = Newt(optimizer, loss_criterion)
+    newt = Newt(optimizer, NewtConfig())
     newt._refresh_param_cache()
 
     err_str = "Unexpected parameter cache state"
@@ -70,7 +45,8 @@ def test_refresh_param_cache_frozen_params(affine_model: nn.Module) -> None:
     affine_model.bias.requires_grad_(False)
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
     loss_criterion = torch.nn.MSELoss()
-    newt = Newt(optimizer, loss_criterion)
+    newt_config = NewtConfig(loss_criterion=loss_criterion)
+    newt = Newt(optimizer, newt_config)
     newt._refresh_param_cache()
 
     err_str = "Unexpected parameter cache state"
@@ -97,7 +73,8 @@ def test_get_param_update(affine_model: nn.Module) -> None:
     """Test `_get_param_update()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    newt = Newt(optimizer, None, cache_updates=True)
+    config = NewtConfig(cache_updates=True)
+    newt = Newt(optimizer, config)
 
     # Force parameter updates
     expected_weight_update = torch.randn_like(affine_model.weight)
@@ -118,7 +95,8 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     """Test `_compute_inner_product()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    newt = Newt(optimizer, None)
+    config = NewtConfig(cache_updates=True)
+    newt = Newt(optimizer, config)
 
     # Force parameter updates
     weight_update = torch.randn_like(affine_model.weight)
@@ -141,11 +119,12 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     assert torch.allclose(inner_product, expected_inner_product), err_str
 
 
-def test_compute_lr(affine_model: nn.Module) -> None:
-    """Test `_compute_lr()` behavior."""
+def test_compute_next_lr(affine_model: nn.Module) -> None:
+    """Test `_compute_next_lr()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    newt = Newt(optimizer, None, gamma=1.0)
+    config = NewtConfig(gamma=1.0)
+    newt = Newt(optimizer, config)
 
     # Force parameter updates
     weight_update = torch.randn_like(affine_model.weight)
@@ -162,11 +141,11 @@ def test_compute_lr(affine_model: nn.Module) -> None:
     newt._next_loss = 1.0
 
     # Compute actual and expected learning rates
-    lr = newt._compute_lr()
+    lr = newt._compute_next_lr()
     inner_product = newt._compute_inner_product()
     expected_lr_num = inner_product
     expected_lr_den = 2.0 * (1.0 - inner_product)
-    expected_lr = 1.0 + (expected_lr_num / (newt._epsilon + expected_lr_den))
+    expected_lr = 1.0 + (expected_lr_num / (newt._config.epsilon + expected_lr_den))
 
     # Check actual versus expected
     assert torch.allclose(lr, expected_lr), "Error in learning rate"

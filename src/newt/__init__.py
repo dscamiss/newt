@@ -1,5 +1,5 @@
 """A Newton-like learning rate scheduler."""
 
-from newt.newt import Newt
+from newt.newt import Newt, NewtConfig
 
-__all__ = ["Newt"]
+__all__ = ["Newt", "NewtConfig"]
