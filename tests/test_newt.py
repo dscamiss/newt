@@ -105,7 +105,7 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
 
     # Compute actual and expected inner products
     inner_product = newt._compute_inner_product()
-    expected_inner_product = torch.as_tensor(0.0).requires_grad_(False)
+    expected_inner_product = torch.tensor(0.0).requires_grad_(False)
     expected_inner_product.add_(torch.norm(weight_update) ** 2.0)  # fmt: skip
     expected_inner_product.add_(torch.norm(bias_update) ** 2.0)  # fmt: skip
 

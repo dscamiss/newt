@@ -103,8 +103,9 @@ class Newt(LRScheduler):
 
         # Accumulate inner product
         # - Here we assume `param.grad` is the "next loss" gradient
+        # - This assumes that all parameters are on the same device
         device = param_list[0].device
-        inner_product = torch.as_tensor(0.0).to(device).requires_grad_(False)
+        inner_product = torch.tensor(0.0).to(device).requires_grad_(False)
 
         for param in param_list:
             if not param.requires_grad:
@@ -156,8 +157,8 @@ class Newt(LRScheduler):
 
         Args:
             loss: Current loss.
-            y_hat: Output.
-            y: Target output.
+            x: Input to model.
+            y: Target output from model.
         """
         self._curr_loss = loss
         self._next_loss = self._config.loss_criterion(self._config.model(x), y)
