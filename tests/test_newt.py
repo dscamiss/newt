@@ -16,17 +16,15 @@ def test_newt_multiple_parameter_groups(affine_model: nn.Module) -> None:
         {"params": affine_model.bias},
     ]
     optimizer = torch.optim.SGD(param_groups)
-    loss_criterion = torch.nn.MSELoss()
     with pytest.raises(ValueError):
-        Newt(optimizer, loss_criterion)
+        Newt(optimizer, NewtConfig())
 
 
 def test_newt_differentiable_optimizer(affine_model: nn.Module) -> None:
     """Test constructor with multiple parameter groups."""
     optimizer = torch.optim.SGD(affine_model.parameters(), differentiable=True)
-    loss_criterion = torch.nn.MSELoss()
     with pytest.raises(ValueError):
-        Newt(optimizer, loss_criterion)
+        Newt(optimizer, NewtConfig())
 
 
 def test_refresh_param_cache_no_frozen_params(affine_model: nn.Module) -> None:
@@ -44,9 +42,7 @@ def test_refresh_param_cache_frozen_params(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with frozen parameters."""
     affine_model.bias.requires_grad_(False)
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    loss_criterion = torch.nn.MSELoss()
-    newt_config = NewtConfig(loss_criterion=loss_criterion)
-    newt = Newt(optimizer, newt_config)
+    newt = Newt(optimizer, NewtConfig())
     newt._refresh_param_cache()
 
     err_str = "Unexpected parameter cache state"
@@ -61,8 +57,7 @@ def test_refresh_param_cache_unexpected(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with unexpected state."""
     affine_model.bias.requires_grad_(False)
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    loss_criterion = torch.nn.MSELoss()
-    newt = Newt(optimizer, loss_criterion)
+    newt = Newt(optimizer, NewtConfig())
 
     newt._param_cache[affine_model.bias] = None  # Frozen and included
     with pytest.raises(RuntimeError):
