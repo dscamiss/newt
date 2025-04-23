@@ -61,6 +61,7 @@ def train(
 ) -> None:
     log_interval = 100
     loss_criterion = torch.nn.NLLLoss()
+    last_lr_history = lr_history[-1]
 
     # Prepare `model` for training
     model.to(device)
@@ -94,7 +95,8 @@ def train(
                 f"loss: {loss.item():.4f}\tlr:{lr:.7f}"
             )
 
-            lr_history.append((n, lr))
+            n_offset = last_lr_history[0]
+            lr_history.append((n_offset + n, lr))
 
 
 def main() -> None:
