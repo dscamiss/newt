@@ -18,20 +18,22 @@ class NewtConfig:
     Dataclass to hold `Newt` configuration.
 
     Attrs:
+        model: Model instance (default = None).
         loss_criterion: Loss criterion instance (default = None).
-        gamma: Slow-adaptation parameter for LR updates (default = 1e-2).
-        epsilon: Constant for divide-by-zero protection (default = 1e-5).
+        gamma: Slow-adaptation parameter for LR updates (default = 0.1).
+        epsilon: Constant for divide-by-zero protection (default = 1e-9).
         clamp_min: Minimum value to clamp LR (default = 1e-7).
-        clamp_max: Maximum value to clamp LR (default = 1e-2).
+        clamp_max: Maximum value to clamp LR (default = 1.0).
         cache_updates: Keep a cache of parameter updates (default = False).
             This is only useful for development and testing purposes.
     """
 
+    model: Optional[nn.Module] = None
     loss_criterion: Optional[LossCriterion] = None
-    gamma: float = 1e-2
-    epsilon: float = 1e-5
+    gamma: float = 0.1
+    epsilon: float = 1e-9
     clamp_min: float = 1e-7
-    clamp_max: float = 1e-2
+    clamp_max: float = 1.0
     cache_updates: bool = False
 
 
@@ -101,7 +103,9 @@ class Newt(LRScheduler):
 
         # Accumulate inner product
         # - Here we assume `param.grad` is the "next loss" gradient
-        inner_product = torch.as_tensor(0.0).requires_grad_(False)
+        device = param_list[0].device
+        inner_product = torch.as_tensor(0.0).to(device).requires_grad_(False)
+
         for param in param_list:
             if not param.requires_grad:
                 continue
@@ -142,10 +146,13 @@ class Newt(LRScheduler):
 
     @jaxtyped(typechecker=typechecker)
     def step_setup(
-        self, loss: Num[Tensor, ""], y_hat: Num[Tensor, "..."], y: Num[Tensor, "..."]
+        self, loss: Num[Tensor, ""], x: Num[Tensor, "..."], y: Num[Tensor, "..."]
     ) -> None:
         """
         Run setup before `step()` call.
+
+        This assumes that that `optimizer.step()` has just been called, so that
+        the call to `loss_criterion(...)` computes the "next loss".
 
         Args:
             loss: Current loss.
@@ -153,7 +160,7 @@ class Newt(LRScheduler):
             y: Target output.
         """
         self._curr_loss = loss
-        self._next_loss = self._config.loss_criterion(y_hat, y)
+        self._next_loss = self._config.loss_criterion(self._config.model(x), y)
         self._next_loss.backward()
 
     def get_lr(self) -> list[float]:

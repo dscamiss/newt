@@ -19,6 +19,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.transforms import Normalize, ToTensor
 
+from newt import Newt, NewtConfig
+
 
 class ConvNet(nn.Module):
     """Simple convolutional network."""
@@ -58,8 +60,15 @@ def train(
     log_interval = 100
     loss_criterion = torch.nn.NLLLoss()
 
+    # Prepare `model` for training
+    model.to(device)
     model.train()
 
+    # Create Newt LR scheduler
+    newt_config = NewtConfig(model=model, loss_criterion=loss_criterion)
+    newt = Newt(optimizer, newt_config)
+
+    # Run training loop
     for batch_idx, (x, y) in enumerate(train_data_loader):
         x, y = x.to(device), y.to(device)
         optimizer.zero_grad()
@@ -68,11 +77,17 @@ def train(
         loss.backward()
         optimizer.step()
 
+        newt.step_setup(loss, x, y)
+        newt.step()
+
         if batch_idx % log_interval == 0:
             n = batch_idx * len(x)
             n_total = len(train_data_loader.dataset)
             percent = 100.0 * batch_idx / len(train_data_loader)
-            print(f"train epoch: {epoch:3d} [{n}/{n_total} ({percent:.2f}%)]\tloss: {loss.item():.4f}")
+            lr = newt.get_last_lr()[0]
+            print(
+                f"train epoch: {epoch:3d} [{n}/{n_total} ({percent:.2f}%)]\tloss: {loss.item():.4f}\tlr:{lr:.7f}"
+            )
 
 
 def main() -> None:
@@ -102,10 +117,11 @@ def main() -> None:
     )
 
     model = ConvNet()
-    optimizer = torch.optim.SGD(model.parameters())
+    optimizer = torch.optim.SGD(model.parameters(), lr=1)
+    num_epochs = 10
 
-    epoch = 1
-    train(device, model, optimizer, train_data_loader, epoch)
+    for epoch in range(1, num_epochs + 1):
+        train(device, model, optimizer, train_data_loader, epoch)
 
 
 def set_seed(seed: int) -> None:
@@ -120,6 +136,7 @@ def set_seed(seed: int) -> None:
     # Avoid non-deterministic operations
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
 
 if __name__ == "__main__":
     set_seed(1337)
