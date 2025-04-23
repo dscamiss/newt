@@ -26,6 +26,9 @@ ignore = [
     "W503",  # line break before binary operator
     "DCO010",  # docstring missing on function/method/class
 ]
+per-file-ignores = """
+        __init__.py: D104
+    """
 
 [tool.isort]
 profile = "black"
