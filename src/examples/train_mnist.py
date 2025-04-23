@@ -101,7 +101,9 @@ def main() -> None:
     """Run MNIST demo."""
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-    data_dir = Path(__file__).resolve().parent / "data"
+    parent_dir = Path(__file__).resolve().parent
+    data_dir = parent_dir / "data"
+    plots_dir = parent_dir / "plots"
 
     transform = transforms.Compose(
         [
@@ -125,7 +127,7 @@ def main() -> None:
 
     model = ConvNet()
     optimizer = torch.optim.SGD(model.parameters(), lr=1)
-    num_epochs = 1
+    num_epochs = 10
     lr_history = []
 
     for epoch in range(1, num_epochs + 1):
@@ -139,6 +141,9 @@ def main() -> None:
     plt.title("MNIST example")
     plt.grid(True)
     plt.show()
+
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(plots_dir / "train_mnist.png")
 
 
 def set_seed(seed: int) -> None:
