@@ -134,9 +134,9 @@ def main() -> None:
     _, ax = plt.subplots()
     lr_history = np.array(lr_history)
     ax.plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
-    plt.xlabel('batch number')
-    plt.ylabel('learning rate')
-    plt.title('MNIST example')
+    plt.xlabel("batch number")
+    plt.ylabel("learning rate")
+    plt.title("MNIST example")
     plt.grid(True)
     plt.show()
 
