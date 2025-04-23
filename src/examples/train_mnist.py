@@ -57,11 +57,12 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_data_loader: DataLoader,
     epoch: int,
+    loss_history: list,
     lr_history: list,
 ) -> None:
     log_interval = 100
     loss_criterion = torch.nn.NLLLoss()
-    last_lr_history = lr_history[-1]
+    n_offset = lr_history[-1][0] if lr_history else 0
 
     # Prepare `model` for training
     model.to(device)
@@ -87,15 +88,16 @@ def train(
             n = batch_idx * len(x)
             n_total = len(train_data_loader.dataset)
             percent = 100.0 * batch_idx / len(train_data_loader)
+            loss = loss.item()
             lr = newt.get_last_lr()[0].item()
 
             print(
                 f"train epoch: {epoch:3d} \t"
                 f"[{n}/{n_total} ({percent:.2f}%)] \t"
-                f"loss: {loss.item():.4f}\tlr:{lr:.7f}"
+                f"loss: {loss:.4f}\tlr:{lr:.7f}"
             )
 
-            n_offset = last_lr_history[0]
+            loss_history.append((n_offset + n, loss))
             lr_history.append((n_offset + n, lr))
 
 
@@ -130,18 +132,26 @@ def main() -> None:
     model = ConvNet()
     optimizer = torch.optim.SGD(model.parameters(), lr=1)
     num_epochs = 10
+    loss_history = []
     lr_history = []
 
     for epoch in range(1, num_epochs + 1):
-        train(device, model, optimizer, train_data_loader, epoch, lr_history)
+        train(device, model, optimizer, train_data_loader, epoch, loss_history, lr_history)
 
-    _, ax = plt.subplots()
+    loss_history = np.array(loss_history)
     lr_history = np.array(lr_history)
-    ax.plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
-    plt.xlabel("batch number")
-    plt.ylabel("learning rate")
-    plt.title("MNIST example")
-    plt.grid(True)
+
+    _, axes = plt.subplots(1, 2)
+    axes[0].plot(loss_history[:, 0], loss_history[:, 1], linewidth=2)
+    axes[0].set_xlabel("batch number")
+    axes[0].set_ylabel("loss")
+    axes[0].grid(True)
+    axes[1].plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
+    axes[1].set_xlabel("batch number")
+    axes[1].set_ylabel("learning rate")
+    axes[1].grid(True)
+    plt.suptitle("MNIST example")
+    plt.tight_layout()
     plt.show()
 
     plots_dir.mkdir(parents=True, exist_ok=True)
