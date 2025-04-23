@@ -5,12 +5,13 @@ Based on https://github.com/pytorch/examples/blob/main/mnist/main.py
 """
 
 # flake8: noqa=D102
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring,not-callable
 
 import random
 from pathlib import Path
 from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -56,6 +57,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     train_data_loader: DataLoader,
     epoch: int,
+    lr_history: list,
 ) -> None:
     log_interval = 100
     loss_criterion = torch.nn.NLLLoss()
@@ -84,10 +86,15 @@ def train(
             n = batch_idx * len(x)
             n_total = len(train_data_loader.dataset)
             percent = 100.0 * batch_idx / len(train_data_loader)
-            lr = newt.get_last_lr()[0]
+            lr = newt.get_last_lr()[0].item()
+
             print(
-                f"train epoch: {epoch:3d} [{n}/{n_total} ({percent:.2f}%)]\tloss: {loss.item():.4f}\tlr:{lr:.7f}"
+                f"train epoch: {epoch:3d} \t"
+                f"[{n}/{n_total} ({percent:.2f}%)] \t"
+                f"loss: {loss.item():.4f}\tlr:{lr:.7f}"
             )
+
+            lr_history.append((n, lr))
 
 
 def main() -> None:
@@ -118,10 +125,20 @@ def main() -> None:
 
     model = ConvNet()
     optimizer = torch.optim.SGD(model.parameters(), lr=1)
-    num_epochs = 10
+    num_epochs = 1
+    lr_history = []
 
     for epoch in range(1, num_epochs + 1):
-        train(device, model, optimizer, train_data_loader, epoch)
+        train(device, model, optimizer, train_data_loader, epoch, lr_history)
+
+    _, ax = plt.subplots()
+    lr_history = np.array(lr_history)
+    ax.plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
+    plt.xlabel('batch number')
+    plt.ylabel('learning rate')
+    plt.title('MNIST example')
+    plt.grid(True)
+    plt.show()
 
 
 def set_seed(seed: int) -> None:
