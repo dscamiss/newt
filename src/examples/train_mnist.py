@@ -72,7 +72,7 @@ def train(
             n = batch_idx * len(x)
             n_total = len(train_data_loader.dataset)
             percent = 100.0 * batch_idx / len(train_data_loader)
-            print(f"train epoch: {epoch} [{n}/{n_total} ({percent:.2f}%)]\tloss: {loss.item():.4f}")
+            print(f"train epoch: {epoch:3d} [{n}/{n_total} ({percent:.2f}%)]\tloss: {loss.item():.4f}")
 
 
 def main() -> None:
