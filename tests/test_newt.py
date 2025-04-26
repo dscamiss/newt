@@ -1,10 +1,10 @@
 """Test code for `Newt` class."""
 
-# pylint: disable=protected-access
+# pylint: disable=not-callable,protected-access
 
 import pytest
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from newt import Newt, NewtConfig
 
@@ -144,3 +144,33 @@ def test_compute_next_lr(affine_model: nn.Module) -> None:
 
     # Check actual versus expected
     assert torch.allclose(lr, expected_lr), "Error in learning rate"
+
+
+def test_step_setup(
+    affine_model: nn.Module, batch_dim: int, input_dim: int, output_dim: int
+) -> None:
+    """Test `step_setup()` behavior."""
+    optimizer = torch.optim.SGD(affine_model.parameters())
+    loss_criterion = torch.nn.MSELoss()
+    newt_config = NewtConfig(model=affine_model, loss_criterion=loss_criterion)
+    newt = Newt(optimizer, newt_config)
+
+    x = torch.randn(batch_dim, input_dim)
+    y = torch.randn(batch_dim, output_dim)
+
+    optimizer.zero_grad()
+    curr_loss = torch.tensor(1.0)
+    next_loss = loss_criterion(affine_model(x), y)
+    next_loss.backward()
+
+    grad_cache: dict[nn.Parameter, Tensor] = {}
+    for param in affine_model.parameters():
+        grad_cache[param] = param.grad.clone().detach()
+
+    newt.step_setup(curr_loss, x, y)
+
+    # Check if `step_setup()` sets correct loss and gradient values
+    assert newt._curr_loss == curr_loss, "Error in current loss"
+    assert newt._next_loss == next_loss, "Error in next loss"
+    for param in affine_model.parameters():
+        assert torch.all(param.grad == grad_cache[param]), "Error in gradients"

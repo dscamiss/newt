@@ -162,6 +162,7 @@ class Newt(LRScheduler):
         """
         self._curr_loss = loss
         self._next_loss = self._config.loss_criterion(self._config.model(x), y)
+        self._optimizer.zero_grad()
         self._next_loss.backward()
 
     def get_lr(self) -> list[float]:
