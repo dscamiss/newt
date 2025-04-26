@@ -19,7 +19,7 @@ def fixture_input_dim() -> int:
 
 @pytest.fixture(name="output_dim")
 def fixture_output_dim() -> int:
-    """Input dimension."""
+    """Output dimension."""
     return 3
 
 
