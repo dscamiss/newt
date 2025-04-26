@@ -20,6 +20,9 @@ class NewtConfig:
     Attrs:
         model: Model instance (default = None).
         loss_criterion: Loss criterion instance (default = None).
+        use_alternate_approx: Use alternate approximation of the Hessian
+            product (default = False).  The standard approximation of the
+            Hessian product is the one used in [1].
         gamma: Slow-adaptation parameter for LR updates (default = 0.1).
         epsilon: Constant for divide-by-zero protection (default = 1e-9).
         clamp_min: Minimum value to clamp LR (default = 1e-7).
@@ -30,6 +33,7 @@ class NewtConfig:
 
     model: Optional[nn.Module] = None
     loss_criterion: Optional[LossCriterion] = None
+    use_alternate_approx: bool = False
     gamma: float = 0.1
     epsilon: float = 1e-9
     clamp_min: float = 1e-7
@@ -66,7 +70,9 @@ class Newt(LRScheduler):
         self._config = config
 
         self._curr_loss = None
-        self._next_loss = None
+        self._curr_inner_product = None
+        self._lookahead_loss = None
+        self._lookahead_inner_product = None
         self._param_cache = ParamTensorDict()
         self._update_cache = ParamTensorDict()
 
@@ -96,13 +102,15 @@ class Newt(LRScheduler):
         """
         Compute inner product term used in the Newton update.
 
+        This is used to compute either the current inner product or lookahead
+        inner product, depending on the gradient state.
+
         Returns:
             inner_product: The inner product term, as a scalar tensor.
         """
         param_list = self._optimizer.param_groups[0]["params"]
 
         # Accumulate inner product
-        # - Here we assume `param.grad` is the "next loss" gradient
         # - This assumes that all parameters are on the same device
         device = param_list[0].device
         inner_product = torch.tensor(0.0).to(device).requires_grad_(False)
@@ -124,16 +132,19 @@ class Newt(LRScheduler):
         Returns:
             next_lr: "Next" learning rate, as a scalar tensor.
         """
-        inner_product = self._compute_inner_product()
         curr_lr = self._optimizer.param_groups[0]["lr"]
 
-        next_lr_num = (curr_lr ** 2.0) * inner_product  # fmt: skip
-        next_lr_den = 2.0 * (self._curr_loss - self._next_loss - (curr_lr * inner_product))
-        next_lr = curr_lr * (
-            1.0 + self._config.gamma * (next_lr_num / (self._config.epsilon + next_lr_den))
-        )
+        if not self._config.use_alternate_approx:
+            next_lr_num = self._lookahead_inner_product
+            next_lr_den = self._curr_inner_product - self._lookahead_inner_product
+        else:
+            next_lr_num = curr_lr * self._lookahead_inner_product
+            next_lr_den = 2.0 * (self._curr_loss - self._lookahead_loss - next_lr_num)
 
-        return next_lr
+        next_lr_den = self._config.epsilon + next_lr_den
+        next_lr_factor = 1.0 + self._config.gamma * (next_lr_num / next_lr_den)
+
+        return next_lr_factor * curr_lr
 
     @jaxtyped(typechecker=typechecker)
     def _get_param_update(self, param: nn.Parameter) -> Num[Tensor, "..."]:
@@ -160,10 +171,16 @@ class Newt(LRScheduler):
             x: Input to model.
             y: Target output from model.
         """
-        self._curr_loss = loss
-        self._next_loss = self._config.loss_criterion(self._config.model(x), y)
+        # Alternate approximation uses current loss and current inner product
+        if not self._config.use_alternate_approx:
+            self._curr_loss = loss
+            self._curr_inner_product = self._compute_inner_product()
+
+        # Both approximations use lookahead inner product
+        self._lookahead_loss = self._config.loss_criterion(self._config.model(x), y)
         self._optimizer.zero_grad()
-        self._next_loss.backward()
+        self._lookahead_loss.backward()
+        self._lookahead_inner_product = self._compute_inner_product()
 
     def get_lr(self) -> list[float]:
         """
@@ -177,11 +194,11 @@ class Newt(LRScheduler):
         if self._step_count == 1:
             return [self._optimizer.param_groups[0]["lr"]]
 
-        # Compute "next" learning rate
+        # Update learning rate
         # TODO: Handle tensor LR
         lr = self._compute_next_lr()
 
-        # Clamp "next" learning rate
+        # Clamp updated learning rate
         lr = torch.clamp(lr, self._config.clamp_min, self._config.clamp_max)
 
         # Refresh cached parameters

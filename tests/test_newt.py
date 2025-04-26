@@ -114,11 +114,16 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     assert torch.allclose(inner_product, expected_inner_product), err_str
 
 
-def test_compute_next_lr(affine_model: nn.Module) -> None:
+@pytest.mark.parametrize("use_alternate_approx", ["True", "False"])
+def test_compute_next_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None:
     """Test `_compute_next_lr()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    config = NewtConfig(gamma=1.0)
+    config = NewtConfig(
+        use_alternate_approx=use_alternate_approx,
+        gamma=1.0,
+        epsilon=0.0,
+    )
     newt = Newt(optimizer, config)
 
     # Force parameter updates
@@ -127,23 +132,27 @@ def test_compute_next_lr(affine_model: nn.Module) -> None:
     affine_model.weight.data -= weight_update
     affine_model.bias.data -= bias_update
 
-    # Force "next loss" gradients
+    # Force losses
+    newt._curr_loss = torch.tensor(3.0)
+    newt._lookahead_loss = torch.tensor(1.0)
+
+    # Force inner products
+    newt._curr_inner_product = torch.tensor(2.0)
+    newt._lookahead_inner_product = torch.tensor(1.0)
+
+    # Force current gradients
     affine_model.weight.grad = weight_update
     affine_model.bias.grad = bias_update
 
-    # Force loss and "next loss"
-    newt._curr_loss = 2.0
-    newt._next_loss = 1.0
-
     # Compute actual and expected learning rates
     lr = newt._compute_next_lr()
-    inner_product = newt._compute_inner_product()
-    expected_lr_num = inner_product
-    expected_lr_den = 2.0 * (1.0 - inner_product)
-    expected_lr = 1.0 + (expected_lr_num / (newt._config.epsilon + expected_lr_den))
+    if not use_alternate_approx:
+        expected_lr = torch.tensor(2.0)
+    else:
+        expected_lr = torch.tensor(1.5)
 
-    # Check actual versus expected
-    assert torch.allclose(lr, expected_lr), "Error in learning rate"
+    # Compare actual and expected learning rates
+    assert torch.all(lr == expected_lr), "Error in learning rates"
 
 
 def test_step_setup(
@@ -160,8 +169,8 @@ def test_step_setup(
 
     optimizer.zero_grad()
     curr_loss = torch.tensor(1.0)
-    next_loss = loss_criterion(affine_model(x), y)
-    next_loss.backward()
+    lookahead_loss = loss_criterion(affine_model(x), y)
+    lookahead_loss.backward()
 
     grad_cache: dict[nn.Parameter, Tensor] = {}
     for param in affine_model.parameters():
@@ -171,6 +180,6 @@ def test_step_setup(
 
     # Check if `step_setup()` sets correct loss and gradient values
     assert newt._curr_loss == curr_loss, "Error in current loss"
-    assert newt._next_loss == next_loss, "Error in next loss"
+    assert newt._lookahead_loss == lookahead_loss, "Error in next loss"
     for param in affine_model.parameters():
         assert torch.all(param.grad == grad_cache[param]), "Error in gradients"
