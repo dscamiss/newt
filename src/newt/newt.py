@@ -28,7 +28,7 @@ class NewtConfig:
         use_alternate_approx: Use alternate approximation of the Hessian
             product (default = False).  The standard approximation of the
             Hessian product is the one used in [1].
-        gamma: Slow-adaptation parameter for LR updates (default = 1e-3).        
+        gamma: Slow-adaptation parameter for LR updates (default = 1e-3).
         epsilon: Constant for divide-by-zero protection (default = 1e-9).
         lr_clamp_min: Learning rate lower bound (default = 1e-7).
         lr_clamp_max: Learning rate upper bound (default = 1.0).
@@ -161,19 +161,19 @@ class Newt(LRScheduler):
 
         next_lr = next_lr_factor * curr_lr
         next_lr = torch.clamp(next_lr, self._config.lr_clamp_min, self._config.lr_clamp_max)
-        
+
         return next_lr
 
     @jaxtyped(typechecker=typechecker)
     def _get_param_update(self, param: nn.Parameter) -> Num[Tensor, "..."]:
         curr_lr = self._optimizer.param_groups[0]["lr"]
-        
+
         param_prev = self._param_cache[param]
         param_update = param.clone().detach().sub_(param_prev).div_(-1.0 * curr_lr)
 
         if self._config.cache_updates:
             self._update_cache[param] = param_update
-        
+
         return param_update
 
     @jaxtyped(typechecker=typechecker)
