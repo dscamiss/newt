@@ -53,14 +53,21 @@ Import:
 from newt import Newt, NewtConfig
 ````
 
-Create the LR scheduler:
+Create your model and loss criterion:
+
+```python
+model = MyModel(...)
+loss_criterion = MyLossCriterion(...)
+```
+
+Create the LR scheduler for `model` and `loss_criterion`:
 
 ```python
 newt_config = NewtConfig(model=model, loss_criterion=loss_criterion)
 newt = Newt(optimizer, newt_config)
 ```
 
-Add it to the training loop:
+Add the LR scheduler to the training loop:
 
 ```python
 for batch_idx, (x, y) in enumerate(train_data_loader):
