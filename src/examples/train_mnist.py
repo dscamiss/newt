@@ -41,11 +41,11 @@ class ConvNet(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = F.max_pool2d(x, 2)
-        x = self.dropout1(x)
+        # x = self.dropout1(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
         x = F.relu(x)
-        x = self.dropout2(x)
+        # x = self.dropout2(x)
         x = self.fc2(x)
         output = F.log_softmax(x, dim=1)
         return output
@@ -125,37 +125,49 @@ def main() -> None:
 
     train_data_loader = DataLoader(
         dataset=train_dataset,
-        batch_size=64,
+        batch_size=128,
         shuffle=True,
     )
 
     model = ConvNet()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1)
+    model_state_dict = model.state_dict()
+    optimizers = [
+        ("SGD", torch.optim.SGD),
+        ("Adam", torch.optim.Adam),
+        ("AdamW", torch.optim.AdamW),
+    ]
     num_epochs = 10
-    loss_history = []
-    lr_history = []
 
-    for epoch in range(1, num_epochs + 1):
-        train(device, model, optimizer, train_data_loader, epoch, loss_history, lr_history)
+    for optimizer_tag, optimizer_type in optimizers:
+        model = ConvNet()
+        model.load_state_dict(model_state_dict)
+        optimizer = optimizer_type(model.parameters())
+        
+        loss_history = []
+        lr_history = []
 
-    loss_history = np.array(loss_history)
-    lr_history = np.array(lr_history)
-
-    _, axes = plt.subplots(1, 2)
-    axes[0].plot(loss_history[:, 0], loss_history[:, 1], linewidth=2)
-    axes[0].set_xlabel("batch number")
-    axes[0].set_ylabel("loss")
-    axes[0].grid(True)
-    axes[1].plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
-    axes[1].set_xlabel("batch number")
-    axes[1].set_ylabel("learning rate")
-    axes[1].grid(True)
-    plt.suptitle("MNIST example")
-    plt.tight_layout()
-    plt.show()
-
-    plots_dir.mkdir(parents=True, exist_ok=True)
-    plt.savefig(plots_dir / "train_mnist.png")
+        for epoch in range(1, num_epochs + 1):
+            train(device, model, optimizer, train_data_loader, epoch, loss_history, lr_history)
+    
+        loss_history = np.array(loss_history)
+        lr_history = np.array(lr_history)
+    
+        _, axes = plt.subplots(1, 2)
+        axes[0].plot(loss_history[:, 0], loss_history[:, 1], linewidth=2)
+        axes[0].set_xlabel("batch number")
+        axes[0].set_ylabel("loss")
+        axes[0].grid(True)
+        axes[1].plot(lr_history[:, 0], lr_history[:, 1], linewidth=2)
+        axes[1].set_xlabel("batch number")
+        axes[1].set_ylabel("learning rate")
+        axes[1].grid(True)
+        plt.suptitle(f"MNIST example - {optimizer_tag}")
+        plt.tight_layout()
+        plt.show()
+    
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        png_filename = f"train_mnist_{optimizer_tag}.png"
+        plt.savefig(plots_dir / png_filename)
 
 
 def set_seed(seed: int) -> None:

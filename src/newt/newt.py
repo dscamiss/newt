@@ -11,6 +11,11 @@ from typeguard import typechecked as typechecker
 
 from .types import LossCriterion, Optimizer, ParamTensorDict
 
+_HESSIAN_NOT_PSD_FACTOR = 1.0
+_LR_FACTOR_CLAMP_MIN = 0.0
+_LR_FACTOR_CLAMP_MAX = 1.05
+_SCALEBACK_FACTOR = 0.1
+
 
 @dataclass
 class NewtConfig:
@@ -23,10 +28,10 @@ class NewtConfig:
         use_alternate_approx: Use alternate approximation of the Hessian
             product (default = False).  The standard approximation of the
             Hessian product is the one used in [1].
-        gamma: Slow-adaptation parameter for LR updates (default = 0.1).
+        gamma: Slow-adaptation parameter for LR updates (default = 1e-3).        
         epsilon: Constant for divide-by-zero protection (default = 1e-9).
-        clamp_min: Minimum value to clamp LR (default = 1e-7).
-        clamp_max: Maximum value to clamp LR (default = 1.0).
+        lr_clamp_min: Learning rate lower bound (default = 1e-7).
+        lr_clamp_max: Learning rate upper bound (default = 1.0).
         cache_updates: Keep a cache of parameter updates (default = False).
             This is only useful for development and testing purposes.
     """
@@ -34,10 +39,10 @@ class NewtConfig:
     model: nn.Module
     loss_criterion: LossCriterion
     use_alternate_approx: bool = False
-    gamma: float = 0.1
+    gamma: float = 1e-3
     epsilon: float = 1e-9
-    clamp_min: float = 1e-7
-    clamp_max: float = 1.0
+    lr_clamp_min: float = 1e-7
+    lr_clamp_max: float = 1.0
     cache_updates: bool = False
 
 
@@ -141,23 +146,34 @@ class Newt(LRScheduler):
             next_lr_num = curr_lr * self._lookahead_inner_product
             next_lr_den = 2.0 * (self._curr_loss - self._lookahead_loss - next_lr_num)
 
-        # Skip update for negative denominator case
-        if next_lr_den < self._config.epsilon:
-            next_lr_factor = 1.0
+        # Heuristics to handle special cases:
+        # - Increasing loss: Drastically scale back multiplicative factor
+        # - Negative denominator: Hessian is not positive-semidefinite, skip
+        # - General case: Multiplicative factor influence is capped above
+        if self._lookahead_loss > self._curr_loss:
+            next_lr_factor = torch.tensor(_SCALEBACK_FACTOR)
+        elif next_lr_den < self._config.epsilon:
+            next_lr_factor = torch.tensor(_HESSIAN_NOT_PSD_FACTOR)
         else:
             next_lr_den = self._config.epsilon + next_lr_den
             next_lr_factor = 1.0 + self._config.gamma * (next_lr_num / next_lr_den)
+            next_lr_factor = torch.clamp(next_lr_factor, _LR_FACTOR_CLAMP_MIN, _LR_FACTOR_CLAMP_MAX)
 
-        return next_lr_factor * curr_lr
+        next_lr = next_lr_factor * curr_lr
+        next_lr = torch.clamp(next_lr, self._config.lr_clamp_min, self._config.lr_clamp_max)
+        
+        return next_lr
 
     @jaxtyped(typechecker=typechecker)
     def _get_param_update(self, param: nn.Parameter) -> Num[Tensor, "..."]:
-        param_group = self._optimizer.param_groups[0]
-        curr_lr = param_group["lr"]
+        curr_lr = self._optimizer.param_groups[0]["lr"]
+        
         param_prev = self._param_cache[param]
         param_update = param.clone().detach().sub_(param_prev).div_(-1.0 * curr_lr)
+
         if self._config.cache_updates:
             self._update_cache[param] = param_update
+        
         return param_update
 
     @jaxtyped(typechecker=typechecker)
@@ -199,11 +215,7 @@ class Newt(LRScheduler):
             return [self._optimizer.param_groups[0]["lr"]]
 
         # Update learning rate
-        # TODO: Handle tensor LR
         lr = self._compute_lr()
-
-        # Clamp updated learning rate
-        lr = torch.clamp(lr, self._config.clamp_min, self._config.clamp_max)
 
         # Refresh cached parameters
         self._refresh_param_cache()
