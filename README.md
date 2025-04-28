@@ -10,7 +10,7 @@
 
 # Introduction
 
-This package provides a PyTorch implementation of a Newton-like learning rate scheduler.
+This package provides a PyTorch implementation of the Newton-like learning rate scheduler.
 
 The general approach [1] is to attempt to minimize the loss function $L : \Theta \to \mathbb{R}$ by iterating
 
