@@ -33,7 +33,8 @@ optimizer to produce the update vectors) and a Newton update on $\alpha$.
 The implementation details primarily concern the Newton update, since directly computing $g''_t(\alpha_t)$ 
 requires an expensive Hessian-vector product.  To work around this, we must use an approximation.
 The approximations available in this package are described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
-On top of the approximations, there are added heuristics to avoid a vanishing or diverging learning rate.
+On top of the approximations, there are added heuristics to manage increasing loss values, to avoid a vanishing or diverging 
+learning rate, etc.
 
 # Installation
 
