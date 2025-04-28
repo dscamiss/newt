@@ -150,6 +150,7 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     assert torch.allclose(inner_product, expected_inner_product), err_str
 
 
+# TODO: Test negative denominator case
 @pytest.mark.parametrize("use_alternate_approx", ["True", "False"])
 def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None:
     """Test `_compute_lr()` behavior."""

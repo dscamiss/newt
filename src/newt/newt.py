@@ -141,8 +141,12 @@ class Newt(LRScheduler):
             next_lr_num = curr_lr * self._lookahead_inner_product
             next_lr_den = 2.0 * (self._curr_loss - self._lookahead_loss - next_lr_num)
 
-        next_lr_den = self._config.epsilon + next_lr_den
-        next_lr_factor = 1.0 + self._config.gamma * (next_lr_num / next_lr_den)
+        # Skip update for negative denominator case
+        if next_lr_den < self._config.epsilon:
+            next_lr_factor = 1.0
+        else:
+            next_lr_den = self._config.epsilon + next_lr_den
+            next_lr_factor = 1.0 + self._config.gamma * (next_lr_num / next_lr_den)
 
         return next_lr_factor * curr_lr
 
