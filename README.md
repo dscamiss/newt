@@ -32,8 +32,8 @@ optimizer to produce the update vectors) and a Newton update on $\alpha$.
 
 The implementation details primarily concern the Newton update, since directly computing $g''_t(\alpha_t)$ 
 requires an expensive Hessian-vector product.  To work around this, we must use an approximation.
-Our choice of approximation is described [here](https://dscamiss.github.io/blog/posts/newton-like-method/),
-along with a comparison to the approximation in [1], 
+The approximations available in this package are described [here](https://dscamiss.github.io/blog/posts/newton-like-method/).
+On top of the approximations, there are added heuristics to avoid a vanishing or diverging learning rate.
 
 # Installation
 
@@ -46,7 +46,27 @@ pip install ./newt
 
 # Usage
 
-TODO
+Create the LR scheduler:
+
+```python
+newt_config = NewtConfig(model=model, loss_criterion=loss_criterion)
+newt = Newt(optimizer, newt_config)
+```
+
+Add it to the training loop:
+
+```python
+for batch_idx, (x, y) in enumerate(train_data_loader):
+    x, y = x.to(device), y.to(device)
+    optimizer.zero_grad()
+    y_hat = model(x)
+    loss = loss_criterion(y_hat, y)
+    loss.backward()
+    optimizer.step()
+
+    newt.step_setup(loss, x, y)  # Computes lookahead gradients
+    newt.step()
+```
 
 # References
 
