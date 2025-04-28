@@ -1,7 +1,7 @@
 """A Newton-like learning rate scheduler."""
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Union
 
 import torch
 from jaxtyping import Num, jaxtyped
@@ -9,7 +9,7 @@ from torch import Tensor, nn
 from torch.optim.lr_scheduler import LRScheduler
 from typeguard import typechecked as typechecker
 
-from newt.types import LossCriterion, Optimizer, ParamTensorDict
+from .types import LossCriterion, Optimizer, ParamTensorDict
 
 
 @dataclass
@@ -31,8 +31,8 @@ class NewtConfig:
             This is only useful for development and testing purposes.
     """
 
-    model: Optional[nn.Module] = None
-    loss_criterion: Optional[LossCriterion] = None
+    model: nn.Module
+    loss_criterion: LossCriterion
     use_alternate_approx: bool = False
     gamma: float = 0.1
     epsilon: float = 1e-9
@@ -69,12 +69,12 @@ class Newt(LRScheduler):
         self._optimizer = optimizer  # TODO: Use superclass `optimizer`?
         self._config = config
 
-        self._curr_loss = None
-        self._curr_inner_product = None
-        self._lookahead_loss = None
-        self._lookahead_inner_product = None
-        self._param_cache = ParamTensorDict()
-        self._update_cache = ParamTensorDict()
+        self._curr_loss: Tensor = torch.tensor(0.0)
+        self._curr_inner_product: Tensor = torch.tensor(0.0)
+        self._lookahead_loss: Tensor = torch.tensor(0.0)
+        self._lookahead_inner_product: Tensor = torch.tensor(0.0)
+        self._param_cache: ParamTensorDict = ParamTensorDict()
+        self._update_cache: ParamTensorDict = ParamTensorDict()
 
         # Initialize parameter cache
         self._refresh_param_cache()
@@ -125,14 +125,14 @@ class Newt(LRScheduler):
         return inner_product
 
     @jaxtyped(typechecker=typechecker)
-    def _compute_next_lr(self) -> Num[Tensor, ""]:
+    def _compute_lr(self) -> Num[Tensor, ""]:
         """
-        Compute "next" learning rate.
+        Compute updated learning rate.
 
         Returns:
-            next_lr: "Next" learning rate, as a scalar tensor.
+            next_lr: Updated learning rate, as a scalar tensor.
         """
-        curr_lr = self._optimizer.param_groups[0]["lr"]
+        curr_lr: Union[float, Tensor] = self._optimizer.param_groups[0]["lr"]
 
         if not self._config.use_alternate_approx:
             next_lr_num = self._lookahead_inner_product
@@ -164,7 +164,7 @@ class Newt(LRScheduler):
         Run setup before `step()` call.
 
         This assumes that that `optimizer.step()` has just been called, so that
-        the call to `loss_criterion(...)` computes the "next loss".
+        the call to `loss_criterion(...)` computes the lookahead loss.
 
         Args:
             loss: Current loss.
@@ -196,7 +196,7 @@ class Newt(LRScheduler):
 
         # Update learning rate
         # TODO: Handle tensor LR
-        lr = self._compute_next_lr()
+        lr = self._compute_lr()
 
         # Clamp updated learning rate
         lr = torch.clamp(lr, self._config.clamp_min, self._config.clamp_max)

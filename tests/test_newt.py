@@ -15,22 +15,38 @@ def test_newt_multiple_parameter_groups(affine_model: nn.Module) -> None:
         {"params": affine_model.weight},
         {"params": affine_model.bias},
     ]
+
     optimizer = torch.optim.SGD(param_groups)
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+    )
+
     with pytest.raises(ValueError):
-        Newt(optimizer, NewtConfig())
+        Newt(optimizer, newt_config)
 
 
 def test_newt_differentiable_optimizer(affine_model: nn.Module) -> None:
     """Test constructor with multiple parameter groups."""
     optimizer = torch.optim.SGD(affine_model.parameters(), differentiable=True)
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+    )
+
     with pytest.raises(ValueError):
-        Newt(optimizer, NewtConfig())
+        Newt(optimizer, newt_config)
 
 
 def test_refresh_param_cache_no_frozen_params(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with no frozen parameters."""
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    newt = Newt(optimizer, NewtConfig())
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+    )
+
+    newt = Newt(optimizer, newt_config)
     newt._refresh_param_cache()
 
     err_str = "Unexpected parameter cache state"
@@ -42,7 +58,12 @@ def test_refresh_param_cache_frozen_params(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with frozen parameters."""
     affine_model.bias.requires_grad_(False)
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    newt = Newt(optimizer, NewtConfig())
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+    )
+
+    newt = Newt(optimizer, newt_config)
     newt._refresh_param_cache()
 
     err_str = "Unexpected parameter cache state"
@@ -57,7 +78,12 @@ def test_refresh_param_cache_unexpected(affine_model: nn.Module) -> None:
     """Test `_refresh_param_cache()` with unexpected state."""
     affine_model.bias.requires_grad_(False)
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1e-3)
-    newt = Newt(optimizer, NewtConfig())
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+    )
+
+    newt = Newt(optimizer, newt_config)
 
     newt._param_cache[affine_model.bias] = None  # Frozen and included
     with pytest.raises(RuntimeError):
@@ -68,8 +94,13 @@ def test_get_param_update(affine_model: nn.Module) -> None:
     """Test `_get_param_update()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    config = NewtConfig(cache_updates=True)
-    newt = Newt(optimizer, config)
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+        cache_updates=True,
+    )
+
+    newt = Newt(optimizer, newt_config)
 
     # Force parameter updates
     expected_weight_update = torch.randn_like(affine_model.weight)
@@ -90,8 +121,13 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     """Test `_compute_inner_product()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    config = NewtConfig(cache_updates=True)
-    newt = Newt(optimizer, config)
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
+        cache_updates=True,
+    )
+
+    newt = Newt(optimizer, newt_config)
 
     # Force parameter updates
     weight_update = torch.randn_like(affine_model.weight)
@@ -115,16 +151,19 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
 
 
 @pytest.mark.parametrize("use_alternate_approx", ["True", "False"])
-def test_compute_next_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None:
-    """Test `_compute_next_lr()` behavior."""
+def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None:
+    """Test `_compute_lr()` behavior."""
     # Note the use of `lr=1.0` here
     optimizer = torch.optim.SGD(affine_model.parameters(), lr=1.0)
-    config = NewtConfig(
+    newt_config = NewtConfig(
+        model=affine_model,
+        loss_criterion=torch.nn.MSELoss(),
         use_alternate_approx=use_alternate_approx,
         gamma=1.0,
         epsilon=0.0,
     )
-    newt = Newt(optimizer, config)
+
+    newt = Newt(optimizer, newt_config)
 
     # Force parameter updates
     weight_update = torch.randn_like(affine_model.weight)
@@ -145,7 +184,7 @@ def test_compute_next_lr(affine_model: nn.Module, use_alternate_approx: bool) ->
     affine_model.bias.grad = bias_update
 
     # Compute actual and expected learning rates
-    lr = newt._compute_next_lr()
+    lr = newt._compute_lr()
     if not use_alternate_approx:
         expected_lr = torch.tensor(2.0)
     else:
@@ -174,6 +213,8 @@ def test_step_setup(
 
     grad_cache: dict[nn.Parameter, Tensor] = {}
     for param in affine_model.parameters():
+        # mypy complains that `grad` can be `NoneType`
+        assert param.grad is not None, "Unexpected NoneType gradient"
         grad_cache[param] = param.grad.clone().detach()
 
     newt.step_setup(curr_loss, x, y)
