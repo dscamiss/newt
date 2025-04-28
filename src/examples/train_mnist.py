@@ -142,16 +142,16 @@ def main() -> None:
         model = ConvNet()
         model.load_state_dict(model_state_dict)
         optimizer = optimizer_type(model.parameters())
-        
+
         loss_history = []
         lr_history = []
 
         for epoch in range(1, num_epochs + 1):
             train(device, model, optimizer, train_data_loader, epoch, loss_history, lr_history)
-    
+
         loss_history = np.array(loss_history)
         lr_history = np.array(lr_history)
-    
+
         _, axes = plt.subplots(1, 2)
         axes[0].plot(loss_history[:, 0], loss_history[:, 1], linewidth=2)
         axes[0].set_xlabel("batch number")
@@ -164,7 +164,7 @@ def main() -> None:
         plt.suptitle(f"MNIST example - {optimizer_tag}")
         plt.tight_layout()
         plt.show()
-    
+
         plots_dir.mkdir(parents=True, exist_ok=True)
         png_filename = f"train_mnist_{optimizer_tag}.png"
         plt.savefig(plots_dir / png_filename)
