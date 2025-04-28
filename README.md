@@ -47,6 +47,12 @@ pip install ./newt
 
 # Usage
 
+Import:
+
+```python
+from newt import Newt, NewtConfig
+````
+
 Create the LR scheduler:
 
 ```python
@@ -68,6 +74,12 @@ for batch_idx, (x, y) in enumerate(train_data_loader):
     newt.step_setup(loss, x, y)  # Computes lookahead gradients
     newt.step()
 ```
+
+# Example
+
+Traces for a simple MNIST example using the `AdamW` optimizer: 
+
+![Alt text](src/examples/plots/train_mnist_AdamW.png)
 
 # References
 
