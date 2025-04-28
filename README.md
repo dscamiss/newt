@@ -55,7 +55,7 @@ newt = Newt(optimizer, newt_config)
 
 Add it to the training loop:
 
-```
+```python
 for batch_idx, (x, y) in enumerate(train_data_loader):
     x, y = x.to(device), y.to(device)
     optimizer.zero_grad()
