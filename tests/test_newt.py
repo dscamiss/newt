@@ -150,8 +150,9 @@ def test_compute_inner_product(affine_model: nn.Module) -> None:
     assert torch.allclose(inner_product, expected_inner_product), err_str
 
 
-# TODO: Test negative denominator case
-@pytest.mark.parametrize("use_alternate_approx", ["True", "False"])
+# TODO: Test negative denominator case, other special cases
+# TODO: Add unclamped test cases
+@pytest.mark.parametrize("use_alternate_approx", [True, False])
 def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None:
     """Test `_compute_lr()` behavior."""
     # Note the use of `lr=1.0` here
@@ -162,6 +163,8 @@ def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None
         use_alternate_approx=use_alternate_approx,
         gamma=1.0,
         epsilon=0.0,
+        lr_clamp_min=0.0,
+        lr_clamp_max=10.0,
     )
 
     newt = Newt(optimizer, newt_config)
@@ -173,7 +176,7 @@ def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None
     affine_model.bias.data -= bias_update
 
     # Force losses
-    newt._curr_loss = torch.tensor(3.0)
+    newt._curr_loss = torch.tensor(5.0)
     newt._lookahead_loss = torch.tensor(1.0)
 
     # Force inner products
@@ -185,11 +188,17 @@ def test_compute_lr(affine_model: nn.Module, use_alternate_approx: bool) -> None
     affine_model.bias.grad = bias_update
 
     # Compute actual and expected learning rates
+    # - Standard approximation:
+    #       lr = 1.0 * (1.0 + 1.0 *    1.0    ) = 2.0
+    #                  (            --------- )
+    #                  (            2.0 - 1.0 )
+    # - Alternate approximation:
+    #       lr = 1.0 * (1.0 + 1.0 *              1.0            ) = 1.5
+    #                  (            --------------------------- )
+    #                  (            2 * (3.0 - 1.0 - 1.0 * 1.0) )
+    # - Both are clamped to _LR_FACTOR_CLAMP_MAX = 1.05
     lr = newt._compute_lr()
-    if not use_alternate_approx:
-        expected_lr = torch.tensor(2.0)
-    else:
-        expected_lr = torch.tensor(1.5)
+    expected_lr = torch.tensor(1.05)
 
     # Compare actual and expected learning rates
     assert torch.all(lr == expected_lr), "Error in learning rates"
