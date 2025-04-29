@@ -60,14 +60,14 @@ model = MyModel(...)
 loss_criterion = MyLossCriterion(...)
 ```
 
-Create the LR scheduler for `model` and `loss_criterion`:
+Create the corresponding `Newt` instance:
 
 ```python
 newt_config = NewtConfig(model=model, loss_criterion=loss_criterion)
 newt = Newt(optimizer, newt_config)
 ```
 
-Add the LR scheduler to the training loop:
+Add the LR scheduler step to the training loop:
 
 ```python
 for batch_idx, (x, y) in enumerate(train_data_loader):
@@ -79,7 +79,7 @@ for batch_idx, (x, y) in enumerate(train_data_loader):
     optimizer.step()
 
     newt.step_setup(loss, x, y)  # Computes lookahead gradients
-    newt.step()
+    newt.step()                  # Consumes lookahead gradients
 ```
 
 # Example
