@@ -88,6 +88,12 @@ Traces for a simple MNIST example using the `AdamW` optimizer:
 
 ![Alt text](src/examples/plots/train_mnist_AdamW.png)
 
+# To-do
+
+[ ] Support for multiple parameter groups
+[ ] Add CIFAR example, larger models
+[ ] EWMA update instead of multiplicative
+
 # References
 
 1. G. Retsinas, G. Sfikas, P. Filntisis and P. Maragos, "Newton-Based Trainable Learning Rate," ICASSP 2023.
