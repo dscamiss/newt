@@ -90,9 +90,9 @@ Traces for a simple MNIST example using the `AdamW` optimizer:
 
 # To-do
 
-[ ] Support for multiple parameter groups
-[ ] Add CIFAR example, larger models
-[ ] EWMA update instead of multiplicative
+- [ ] Support for multiple parameter groups
+- [ ] Add CIFAR example, larger models
+- [ ] EWMA alpha update instead of multiplicative
 
 # References
 
